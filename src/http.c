@@ -79,7 +79,7 @@ struct request http_parse_request(char *buf, int len) {
     // get method, path and version
     char *method = buf;
     char *path;
-    char *version;
+    // char *version;
     int i;
     int sc = 0;
     for (i = 0; i < len; i++) {
@@ -90,7 +90,7 @@ struct request http_parse_request(char *buf, int len) {
                 path = buf + i + 1;
             } else if (sc == 2) {
                 buf[i] = '\0';
-                version = buf + i + 1;
+                // version = buf + i + 1;
             }
         }
 
@@ -145,7 +145,7 @@ struct request http_parse_request(char *buf, int len) {
 
     // parse headers
     if (buf[i+2] == '\r') return request;
-    struct pair *headers = calloc(5, sizeof(struct pair));
+    struct pair *headers = calloc(6, sizeof(struct pair));
     int headers_count = 0;
     int headers_size = 5;
     int in_key = 1;
@@ -168,6 +168,7 @@ struct request http_parse_request(char *buf, int len) {
         }
 
         if (buf[i] == '\r' && buf[i+1] == '\n' && buf[i+2] == '\r' && buf[i+3] == '\n') {
+            buf[i] = '\0';
             break;
         }
     }
@@ -186,4 +187,87 @@ struct request http_parse_request(char *buf, int len) {
     }
 
     return request;
+}
+
+
+void http_get_status(int status, char *code, char *msg) {
+    switch (status) {
+        case STATUS_OK:
+            strcpy_s(code, 4, "200");
+            strcpy_s(msg, 30, " OK\r\n");
+            break;
+        case STATUS_NOTFOUND:
+            strcpy_s(code, 4, "404");
+            strcpy_s(msg, 30, " Not Found\r\n");
+            break;
+        default:
+            strcpy_s(code, 4, "500");
+            strcpy_s(msg, 30, " Internal Server Error\r\n");
+    }
+}
+
+
+int http_create_response(struct response response, char **output) {
+    int buf_size = 100;
+    char *buf = malloc(buf_size);
+    int pos = 0;
+
+    // add status
+    memcpy(buf, "HTTP/1.1 ", 9);
+    pos = 9;
+    char status[4];
+    char msg[30];
+    http_get_status(response.status, status, msg);
+    memcpy(&buf[pos], status, 3);
+    pos += 3;
+    memcpy(&buf[pos], msg, strlen(msg));
+    pos += strlen(msg);
+
+    // add headers
+    if (40 + pos > buf_size) {
+        buf_size += 40 + pos + 10;
+        buf = realloc(buf, buf_size);
+    }
+
+    memcpy(&buf[pos], "Content-Length: ", 16);
+    pos += 16;
+    char cl_buf[10] = {0};
+    _itoa_s(response.body_len, cl_buf, 10, 10);
+    memcpy(&buf[pos], cl_buf, strlen(cl_buf));
+    pos += strlen(cl_buf);
+    memcpy(&buf[pos], "\r\n", 2);
+    pos += 2;
+
+    for (int i = 0; i < response.headers_count; i++) {
+        int key_len =  strlen(response.headers[i].key);
+        int value_len = strlen(response.headers[i].value);
+
+        if (key_len + value_len + 4 + pos > buf_size) {
+            buf_size += key_len + value_len + 4 + pos + 10;
+            buf = realloc(buf, buf_size);
+        }
+
+        memcpy(&buf[pos], response.headers[i].key, key_len);
+        pos += key_len;
+        memcpy(&buf[pos], ": ", 2);
+        pos += 2;
+        memcpy(&buf[pos], response.headers[i].value, value_len);
+        pos += value_len;
+        memcpy(&buf[pos], "\r\n", 2);
+        pos += 2;
+    }
+
+    memcpy(&buf[pos], "\r\n", 2);
+    pos += 2;
+
+    // add body
+    if (pos + response.body_len > buf_size) {
+        buf_size = pos + response.body_len + 1;
+        buf = realloc(buf, buf_size);
+    }
+
+    memcpy_s(&buf[pos], buf_size - pos, response.body, response.body_len);
+
+    *output = buf;
+    return pos + response.body_len;
 }

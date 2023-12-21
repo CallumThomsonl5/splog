@@ -6,11 +6,11 @@
 struct route {
     char *path;
     int method;
-    struct response (*fptr)(struct request);
+    struct response* (*fptr)(struct request*);
 };
 
-int _splog_run(struct route *routes, int routes_len);
-#define splog_run(routes) (_splog_run(routes, sizeof(routes)/sizeof(struct route)))
-
+int _splog_run(struct route *routes, int routes_len, struct response* (*notfound_resp)(struct request*));
+void splog_free_response(struct response response);
+void splog_free_request(struct request request);
 
 #endif

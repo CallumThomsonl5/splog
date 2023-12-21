@@ -20,7 +20,8 @@ enum method {
 
 enum status {
     STATUS_OK = 200,
-    STATUS_NOTFOUND = 404
+    STATUS_NOTFOUND = 404,
+    STATUS_ERROR = 0
 };
 
 struct pair {
@@ -41,7 +42,10 @@ typedef struct request {
 typedef struct response {
     struct pair *headers;
     int headers_count;
+    int headers_size;
     char *body;
+    int body_len;
+    int body_size;
     int status;
 } response;
 
@@ -52,5 +56,6 @@ int http_accept_connection(int sock, long *addr);
 
 struct request http_parse_request(char *buf, int len);
 char *http_get_header_value(struct pair *headers, int headers_count, char *key);
+int http_create_response(struct response response, char **output);
 
 #endif

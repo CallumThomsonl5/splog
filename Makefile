@@ -1,4 +1,4 @@
-FLAGS = 
+FLAGS = -Wall -pedantic
 
 all: test.exe
 

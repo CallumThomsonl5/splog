@@ -1,81 +1,89 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "src/sploguser.h"
 
-response add_resp(request req) {
-    int a,b;
-    struct response resp;
-    if (req.queries_count == 2) {
-        a = atoi(req.queries[0].value);
-        b = atoi(req.queries[1].value);
-        
-        char *buf = calloc(16, 1);
-        _itoa_s(a+b, buf, 16, 10);
-        resp.body = buf;
-    } else {
-        resp.body = "error not enough args";
+response test_resp(request req) {
+    response resp = get_response();
+
+    struct pair *queries;
+    int queries_count = get_queries(req, &queries);
+
+    for (int i = 0; i < queries_count; i++) {
+        printf("key: %s, value: %s\n", queries[i].key, queries[i].value);
     }
 
-    resp.headers_count = 0;
+    append_body(resp, "<h1>test</h1>");
+    set_header(resp, "Content-Type", "text/html");
+
     return resp;
 }
 
 response fuck_resp(request req) {
-    printf("req body: %s\n", req.body);
-
-    struct response example = {
-        .body = "fuck was called",
-        .headers = NULL,
-        .headers_count = 0
-    };
-
-    return example;
+    response resp = get_response();
+    printf("req body: %s\n", get_body(req));
+    append_body(resp, "fuck was called");
+    return resp;
 }
 
-response home_resp(request req) {
-    struct pair *headers = malloc(sizeof(struct pair)*2);
-    headers[0].key = "Content-Type";
-    headers[0].value = "text/html";
+response megabyte_resp(request req) {
+    response resp = get_response();
 
-    headers[1].key = "Server";
-    headers[1].value = "Splog";
-
-    struct response example = {
-        .body = "<h1>Home page</h1>",
-        .headers = headers,
-        .headers_count = 2
-    };
-
-    char *user_agent = get_header(req, "User-Agent");
-    if (user_agent) {
-        printf("useragent: %s\n", user_agent);
-    }
-
-    return example;
-}
-
-response test_resp(request req) {
-    for (int i = 0; i < req.queries_count; i++) {
-        printf("key: %s, value: %s\n", req.queries[i].key, req.queries[i].value);
-    }
-
-    struct response resp = {
-        .body = "<h1>testmethod response</h1>",
-        .headers = NULL,
-        .headers_count = 0
-    };
+    char *buf = malloc(1e6);
+    memset(buf, 'F', 1e6-1);
+    buf[999999] = '\0';
+    append_body_m(resp, buf);
 
     return resp;
 }
 
-int main() {
+response home_resp(request req) {
+    response resp = get_response();
+
+    set_header(resp, "Content-Type", "text/html");
+    append_body(resp, "<h1>Home page</h1>");
+
+    char *user_agent = get_header(req, "User-Agent");
+    if (user_agent) {
+        printf("user agent is %s\n", user_agent);
+    }
+
+    return resp;
+}
+
+response add_resp(request req) {
+    response resp = get_response();
+
+    struct pair *queries;
+    int queries_count = get_queries(req, &queries);
+    int total = 0;
+    for (int i = 0; i < queries_count; i++) {
+        total += atoi(queries[i].value);
+    }
+
+    char buf[10] = {0};
+    _itoa_s(total, buf, 10, 10);
+    append_body(resp, buf);
+
+    return resp;
+}
+
+response notfound_resp(request req) {
+    response resp = get_response();
+    append_body(resp, "cannot get ");
+    append_body(resp, get_path(req));
+    return resp;
+}
+
+int main(void) {
     struct route routes[] = {
         {.path = "/fuck", .method = POST, .fptr = fuck_resp},
         {.path = "/", .method = GET, .fptr = home_resp},
         {.path = "/test", .method = GET, .fptr = test_resp},
         {.path = "/add", .method = GET, .fptr = add_resp},
+        {.path = "/megabyte", .method = GET, .fptr = megabyte_resp}
     };
 
-    splog_run(routes);
+    splog_run(routes, notfound_resp);
     return 0;
 }
