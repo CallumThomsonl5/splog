@@ -6,11 +6,11 @@
 response test_resp(request req) {
     response resp = get_response();
 
-    struct pair *parameters;
-    int parameters_count = get_parameters(req, &parameters);
+    struct pair *queries;
+    int queries_count = get_queries(req, &queries);
 
-    for (int i = 0; i < parameters_count; i++) {
-        printf("key: %s, value: %s\n", parameters[i].key, parameters[i].value);
+    for (int i = 0; i < queries_count; i++) {
+        printf("key: %s, value: %s\n", queries[i].key, queries[i].value);
     }
 
     append_body(resp, "<h1>test</h1>");
@@ -54,11 +54,11 @@ response home_resp(request req) {
 response add_resp(request req) {
     response resp = get_response();
 
-    struct pair *parameters;
-    int parameters_count = get_parameters(req, &parameters);
+    struct pair *queries;
+    int queries_count = get_queries(req, &queries);
     int total = 0;
-    for (int i = 0; i < parameters_count; i++) {
-        total += atoi(parameters[i].value);
+    for (int i = 0; i < queries_count; i++) {
+        total += atoi(queries[i].value);
     }
 
     char buf[10] = {0};

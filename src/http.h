@@ -33,8 +33,8 @@ typedef struct request {
     char *path;
     struct pair *headers;
     int headers_count;
-    struct pair *parameters;
-    int parameters_count;
+    struct pair *queries;
+    int queries_count;
     char *body;
     int method;
 } request;
