@@ -35,7 +35,7 @@ void set_status(response resp, int status);
 char *get_path(request req);
 char *get_body(request req);
 char *get_header(request req, char *key);
-char *get_query(request req, char *key);
+char *get_parameter(request req, char *key);
 int get_headers(request req, struct pair** headers);
-int get_queries(request req, struct pair** headers);
+int get_parameters(request req, struct pair** parameters);
 #endif

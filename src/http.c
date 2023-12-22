@@ -105,41 +105,41 @@ struct request http_parse_request(char *buf, int len) {
     request.method = http_get_method(method);
 
     // parse query string
-    int query_start = 0;
+    int parameter_start = 0;
     for (int j = 0; j < strnlen_s(path, 1000); j++) {
         if (path[j] == '?') {
-            query_start = j;
+            parameter_start = j;
             break;
         }
     }
 
-    if (query_start) {
-        struct pair *queries = malloc(sizeof(struct pair));
-        int query_size = 1;
-        int query_count = 0;
+    if (parameter_start) {
+        struct pair *parameters = malloc(sizeof(struct pair));
+        int parameter_size = 1;
+        int parameter_count = 0;
         int in_key = 1;
         int pathlen = strnlen_s(path, 1000);
-        for (int j = query_start + 1; j < pathlen; j++) {
-            if (query_count == query_size) {
-                query_size += 2;
-                queries = realloc(queries, sizeof(struct pair) * query_size);
+        for (int j = parameter_start + 1; j < pathlen; j++) {
+            if (parameter_count == parameter_size) {
+                parameter_size += 2;
+                parameters = realloc(parameters, sizeof(struct pair) * parameter_size);
             }
 
-            if (in_key && (query_count == 0 || path[j-1] == '&')) {
-                queries[query_count].key = path + j;
+            if (in_key && (parameter_count == 0 || path[j-1] == '&')) {
+                parameters[parameter_count].key = path + j;
                 in_key = 0;
                 path[j-1] = '\0';
             }
 
             if (path[j] == '=') {
                 path[j] = '\0';
-                queries[query_count++].value = path + 1 + j;
+                parameters[parameter_count++].value = path + 1 + j;
                 in_key = 1;
             }
         }
 
-        request.queries = queries;
-        request.queries_count = query_count;
+        request.parameters = parameters;
+        request.parameters_count = parameter_count;
     }
     
 

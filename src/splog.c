@@ -60,8 +60,8 @@ void splog_free_response(struct response response) {
 
 
 void splog_free_request(struct request request) {
-    if (request.queries_count) {
-        free(request.queries);
+    if (request.parameters_count) {
+        free(request.parameters);
     }
 
     if (request.headers_count) {
