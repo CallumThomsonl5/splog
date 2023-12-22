@@ -90,11 +90,11 @@ int get_headers(struct request *req, struct pair** headers) {
     return req->headers_count;
 }
 
-char *get_query(struct request *req, char *key) {
-    return splog_get_pair(req->queries, req->queries_count, key);
+char *get_parameter(struct request *req, char *key) {
+    return splog_get_pair(req->parameters, req->parameters_count, key);
 }
 
-int get_queries(struct request *req, struct pair** queries) {
-    *queries = req->queries;
-    return req->queries_count;
+int get_parameters(struct request *req, struct pair** parameters) {
+    *parameters = req->parameters;
+    return req->parameters_count;
 }
