@@ -4,7 +4,7 @@
 #include "src/sploguser.h"
 
 response test_resp(request req) {
-    response resp = get_response();
+    response resp = create_response();
 
     struct pair *parameters;
     int parameters_count = get_parameters(req, &parameters);
@@ -20,14 +20,14 @@ response test_resp(request req) {
 }
 
 response fuck_resp(request req) {
-    response resp = get_response();
+    response resp = create_response();
     printf("req body: %s\n", get_body(req));
     append_body(resp, "fuck was called");
     return resp;
 }
 
 response megabyte_resp(request req) {
-    response resp = get_response();
+    response resp = create_response();
 
     char *buf = malloc(1e6);
     memset(buf, 'F', 1e6-1);
@@ -38,7 +38,7 @@ response megabyte_resp(request req) {
 }
 
 response home_resp(request req) {
-    response resp = get_response();
+    response resp = create_response();
 
     set_header(resp, "Content-Type", "text/html");
     append_body(resp, "<h1>Home page</h1>");
@@ -52,7 +52,7 @@ response home_resp(request req) {
 }
 
 response add_resp(request req) {
-    response resp = get_response();
+    response resp = create_response();
 
     struct pair *parameters;
     int parameters_count = get_parameters(req, &parameters);
@@ -68,8 +68,22 @@ response add_resp(request req) {
     return resp;
 }
 
+response indexhtml_resp(request req) {
+    response resp = create_response();
+    append_file_body(resp, "./static/index.html");
+    set_header(resp, "Content-Type", "text/html");
+    return resp;
+}
+
+response favicon_resp(request req) {
+    response resp = create_response();
+    append_file_body(resp, "./static/favicon.ico");
+    set_header(resp, "Content-Type", "image/png");
+    return resp;
+}
+
 response notfound_resp(request req) {
-    response resp = get_response();
+    response resp = create_response();
     append_body(resp, "cannot get ");
     append_body(resp, get_path(req));
     return resp;
@@ -81,7 +95,9 @@ int main(void) {
         {.path = "/", .method = GET, .fptr = home_resp},
         {.path = "/test", .method = GET, .fptr = test_resp},
         {.path = "/add", .method = GET, .fptr = add_resp},
-        {.path = "/megabyte", .method = GET, .fptr = megabyte_resp}
+        {.path = "/megabyte", .method = GET, .fptr = megabyte_resp},
+        {.path = "/index.html", .method = GET, .fptr = indexhtml_resp},
+        {.path = "/favicon.ico", .method = GET, .fptr = favicon_resp}
     };
 
     splog_run(routes, notfound_resp);

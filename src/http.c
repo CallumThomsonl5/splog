@@ -15,6 +15,7 @@ void pretty_print_ip(long ip) {
     printf("%d.%d.%d.%d\n", one, two, three, four);
 }
 
+
 void pretty_ip(long ip, char *buf) {
     unsigned char one = ip >> 24;
     unsigned char two = ip >> 16;
@@ -24,15 +25,6 @@ void pretty_ip(long ip, char *buf) {
     snprintf(buf, 16, "%d.%d.%d.%d", one, two, three, four);
 }
 
-enum method http_get_method(char *method) {
-    if (strcmp(method, "GET") == 0) {
-        return GET;
-    } else if (strcmp(method, "POST") == 0){
-        return POST;
-    } else {
-        return ERROR_METHOD;
-    }
-}
 
 int http_get_tcp_socket(long host, short port) {
     WSADATA wsaData;

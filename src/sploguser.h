@@ -26,9 +26,11 @@ int _splog_run(struct route *routes, int routes_len, request (*notfound_resp)(re
 
 char *splog_get_pair(struct pair *pairs, int count, char *key);
 
-response get_response(void);
+response create_response(void);
 void append_body(response resp, char *body);
 void append_body_m(response resp, char *body);
+void append_body_l(response resp, char *buf, int len);
+void append_file_body(response resp, char *filename);
 void set_header(response resp, char *key, char *value);
 void set_status(response resp, int status);
 

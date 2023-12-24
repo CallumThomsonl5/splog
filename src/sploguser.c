@@ -37,6 +37,36 @@ void append_body_m(struct response *resp, char *body) {
     free(body);
 }
 
+void append_body_l(struct response *resp, char *buf, int len) {
+    if (!resp->body_size) {
+        resp->body_size = 1000;
+        resp->body = malloc(resp->body_size);
+    }
+
+    if (len + resp->body_len >= resp->body_size - 1) {
+        resp->body_size = len + resp->body_len + 100;
+        resp->body = realloc(resp->body, resp->body_size);
+        memset(&resp->body[resp->body_len], 0, resp->body_size - resp->body_len);
+    }
+
+    memcpy_s(&resp->body[resp->body_len], resp->body_size - resp->body_len, buf, len);
+    resp->body_len += len;
+}
+
+void append_file_body(struct response *resp, char *filename) {
+    FILE *fp = NULL;
+    fopen_s(&fp, filename, "rb");
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    rewind(fp);
+
+    char *buf = malloc(size);
+    fread(buf, size, 1, fp);
+    fclose(fp);
+
+    append_body_l(resp, buf, size);
+}
+
 void set_header(struct response *resp, const char *key, const char *value) {
     const int key_len = strlen(key);
     const int value_len = strlen(value);
@@ -65,7 +95,7 @@ void set_status(struct response *resp, const int status) {
     resp->status = status;
 }
 
-struct response *get_response(void) {
+struct response *create_response(void) {
     struct response *resp = calloc(1, sizeof(struct response));
     resp->status = 200;
     set_header(resp, "Server", "Splog/0.1");
