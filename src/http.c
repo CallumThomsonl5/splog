@@ -36,17 +36,19 @@ enum method http_get_method(char *method) {
 
 int http_get_tcp_socket(long host, short port) {
     WSADATA wsaData;
-    int result = WSAStartup(MAKEWORD(2,2), &wsaData);
+    if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) return -1;
 
     int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == INVALID_SOCKET) return -1;
 
     struct sockaddr_in mysockaddr;
     mysockaddr.sin_family = AF_INET;
     mysockaddr.sin_port = htons(port);
     mysockaddr.sin_addr.s_addr = htonl(host);
 
-    int bindresult = bind(sock, (struct sockaddr*)(&mysockaddr), sizeof(mysockaddr));
-    int listenresult = listen(sock, 5);
+    if (bind(sock, (struct sockaddr*)(&mysockaddr), sizeof(mysockaddr)) != 0) return -1;
+    if (listen(sock, 5) != 0) return -1;
+
     return sock;
 }
 
@@ -72,121 +74,315 @@ char *http_get_header_value(struct pair *headers, int headers_count, char *key) 
 }
 
 
-struct request http_parse_request(char *buf, int len) {
-    struct request request;
-    memset(&request, 0, sizeof(struct request));
+void http_req_add_para(struct request *req, char *key, char *value) {
+    if (!req->parameters_size) {
+        req->parameters_size = 1;
+        req->parameters = calloc(req->parameters_size, sizeof(struct pair));
+    }
 
-    // get method, path and version
-    char *method = buf;
-    char *path;
-    // char *version;
-    int i;
-    int sc = 0;
-    for (i = 0; i < len; i++) {
-        if (buf[i] == ' ') {
-            sc++;
-            if (sc == 1) {
-                buf[i] = '\0';
-                path = buf + i + 1;
-            } else if (sc == 2) {
-                buf[i] = '\0';
-                // version = buf + i + 1;
-            }
-        }
+    if (req->parameters_count + 1 > req->parameters_size) {
+        req->parameters_size += 2;
+        req->parameters = realloc(req->parameters, req->parameters_size * sizeof(struct pair));
+    }
 
-        if (buf[i] == '\r') {
-            buf[i] = '\0';
-            break;
+    req->parameters[req->parameters_count].key = key;
+    req->parameters[req->parameters_count++].value = value;
+}
+
+
+void http_req_add_header(struct request *req, char *key, char *value) {
+    if (!req->headers_size) {
+        req->headers_size = 15;
+        req->headers = calloc(req->headers_size, sizeof(struct pair));
+    }
+
+    if (req->headers_count + 1 > req->headers_size) {
+        req->headers_size += 2;
+        req->headers = realloc(req->headers, req->headers_size * sizeof(struct pair));
+    }
+
+    req->headers[req->headers_count].key = key;
+    req->headers[req->headers_count++].value = value;
+}
+
+
+int http_parse_start_line(struct request *req, char *buf, int len) {
+    enum {
+        sl_start,
+        sl_method,
+        sl_before_path,
+        sl_path,
+        sl_para_start,
+        sl_para_key,
+        sl_para_value_start,
+        sl_para_value,
+        sl_scheme_H,
+        sl_scheme_HT,
+        sl_scheme_HTT,
+        sl_scheme_HTTP,
+        sl_version_slash,
+        sl_version_start,
+        sl_version,
+        sl_almost_done,
+        sl_done,
+    } state;
+
+    state = sl_start;
+    char *i, c;
+    char *method_start;
+
+    char *para_key_start = 0;
+    char *para_value_start = 0;
+
+    for (i = buf; i < (buf + len); i++) {
+        c = *i;
+
+        switch (state) {
+            case sl_start:
+                if (c < 'A' || c > 'Z') return HTTP_INVALID_REQUEST;
+                method_start = i;
+                state = sl_method;
+                break;
+            case sl_method:
+                if (c == ' ') {
+                    state = sl_before_path;
+                    *i = '\0';
+
+                    if (strncmp(method_start, "GET", 3) == 0) {
+                        req->method = GET;
+                    } else if (strncmp(method_start, "POST", 4) == 0) {
+                        req->method = POST;
+                    } else {
+                        return HTTP_INVALID_REQUEST;
+                    }
+
+                } else if ((c < 'A' || c > 'Z')) return HTTP_INVALID_REQUEST;
+                break;
+            case sl_before_path:
+                if (c != '/') return HTTP_INVALID_REQUEST;
+                state = sl_path;
+                req->path = i;
+                break;
+            case sl_path:
+                if (c == ' ') {
+                    req->path_len = i - req->path;
+                    *i = '\0';
+                    state = sl_scheme_H;
+                } else if (c == '?') {
+                    req->path_len = i - req->path;
+                    *i = '\0';
+                    state = sl_para_start;
+                } else if ( !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-'
+                        || c == '_' || c == '.' || c == '/') ) return HTTP_INVALID_REQUEST;
+                break;
+            case sl_para_start:
+                if (c == ' ') {
+                    state = sl_scheme_H;
+                } else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_' || c == '-') {
+                    state = sl_para_key;
+                    para_key_start = i;
+                } else return HTTP_INVALID_REQUEST;
+                break;
+            case sl_para_key:
+                if (c == '=') {
+                    state = sl_para_value_start;
+                    *i = '\0';
+                } else if (c == '&') {
+                    state = sl_para_start;
+                    *i = '\0';
+                    http_req_add_para(req, para_key_start, NULL);
+                } else if (c == ' ') {
+                    state = sl_scheme_H;
+                    *i = '\0';
+                    http_req_add_para(req, para_key_start, NULL);
+                } else if ( !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_') )
+                    return HTTP_INVALID_REQUEST;
+                break;
+            case sl_para_value_start:
+                if (c == ' ') {
+                    state = sl_scheme_H;
+                    *i = '\0';
+                    http_req_add_para(req, para_key_start, NULL);
+                } else if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+                    state = sl_para_value;
+                    para_value_start = i;
+                } else return HTTP_INVALID_REQUEST;
+                break;
+            case sl_para_value:
+                if (c == ' ') {
+                    state = sl_scheme_H;
+                    *i = '\0';
+                    http_req_add_para(req, para_key_start, para_value_start);
+                } else if (c == '&') {
+                    state = sl_para_start;
+                    *i = '\0';
+                    http_req_add_para(req, para_key_start, para_value_start);
+                } else if ( !((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_' || (c >= '0' && c <= '9')) )
+                    return HTTP_INVALID_REQUEST;
+                break;
+            case sl_scheme_H:
+                if (c != 'H') return HTTP_INVALID_REQUEST;
+                state = sl_scheme_HT;
+                break;
+            case sl_scheme_HT:
+                if (c != 'T') return HTTP_INVALID_REQUEST;
+                state = sl_scheme_HTT;
+                break;
+            case sl_scheme_HTT:
+                if (c != 'T') return HTTP_INVALID_REQUEST;
+                state = sl_scheme_HTTP;
+                break;
+            case sl_scheme_HTTP:
+                if (c != 'P') return HTTP_INVALID_REQUEST;
+                state = sl_version_slash;
+                break;
+            case sl_version_slash:
+                if (c != '/') return HTTP_INVALID_REQUEST;
+                state = sl_version_start;
+                break;
+            case sl_version_start:
+                if (c < '1' || c > '3') return HTTP_INVALID_REQUEST;
+                req->major_version = c - '0';
+                state = sl_version;
+                break;
+            case sl_version:
+                if (c == '.') break;
+                if (c == '0' || c == '1') {
+                    req->minor_version = c - '0';
+                    req->version = req->major_version * 1000 + req->minor_version;
+                    state = sl_almost_done;
+                } else
+                    return HTTP_INVALID_REQUEST;
+                break;
+            case sl_almost_done:
+                if (c != '\r') return HTTP_INVALID_REQUEST;
+                state = sl_done;
+                break;
+            case sl_done:
+                if (c != '\n') return HTTP_INVALID_REQUEST;
+                goto done;
+                break;
+            default:
+                return HTTP_INVALID_REQUEST;
+                break;
         }
     }
 
-    request.path = path;
-    if (http_get_method(method) == ERROR_METHOD) return request;
-    request.method = http_get_method(method);
+    if (state != sl_done) return HTTP_INVALID_REQUEST;
 
-    // parse query string
-    int parameter_start = 0;
-    for (int j = 0; j < strnlen_s(path, 1000); j++) {
-        if (path[j] == '?') {
-            parameter_start = j;
-            break;
-        }
-    }
-
-    if (parameter_start) {
-        struct pair *parameters = malloc(sizeof(struct pair));
-        int parameter_size = 1;
-        int parameter_count = 0;
-        int in_key = 1;
-        int pathlen = strnlen_s(path, 1000);
-        for (int j = parameter_start + 1; j < pathlen; j++) {
-            if (parameter_count == parameter_size) {
-                parameter_size += 2;
-                parameters = realloc(parameters, sizeof(struct pair) * parameter_size);
-            }
-
-            if (in_key && (parameter_count == 0 || path[j-1] == '&')) {
-                parameters[parameter_count].key = path + j;
-                in_key = 0;
-                path[j-1] = '\0';
-            }
-
-            if (path[j] == '=') {
-                path[j] = '\0';
-                parameters[parameter_count++].value = path + 1 + j;
-                in_key = 1;
-            }
-        }
-
-        request.parameters = parameters;
-        request.parameters_count = parameter_count;
+    done:
+    if (i + 2 < buf + len) {
+        req->pos = i + 2;
+        if (*(i+1) == '\r' && *(i+2) == '\n') return HTTP_DONE;
+        else if (*(i+1) == '\r') return HTTP_INVALID_REQUEST;
+        req->pos = i + 1;
+        return HTTP_CONTINUE;
     }
     
+    return HTTP_INVALID_REQUEST;
+}
 
-    // parse headers
-    if (buf[i+2] == '\r') return request;
-    struct pair *headers = calloc(6, sizeof(struct pair));
-    int headers_count = 0;
-    int headers_size = 5;
-    int in_key = 1;
-    for (i = i + 2; i < len; i++) {
-        if (headers_count == headers_size) {
-            headers_size+=2;
-            headers = realloc(headers, headers_size*sizeof(struct pair));
-        }
 
-        if (buf[i] == ':' && buf[i+1] == ' ' && in_key) {
-            in_key = 0;
-            buf[i] = '\0';
-        } else if (in_key && buf[i-1] == '\n') {
-            buf[i-2] = '\0';
-            headers[headers_count].key = buf + i;
-        } else if (!in_key && buf[i] == ' ') {
-            buf[i] = '\0';
-            headers[headers_count++].value = buf + i + 1;
-            in_key = 1;
-        }
+int http_parse_headers(struct request *req, char *buf, int len) {
+    enum {
+        h_start,
+        h_start_2nd,
+        h_key,
+        h_before_value,
+        h_value_start,
+        h_value,
+        h_lf,
+        h_done
+    } state;
 
-        if (buf[i] == '\r' && buf[i+1] == '\n' && buf[i+2] == '\r' && buf[i+3] == '\n') {
-            buf[i] = '\0';
-            break;
+    state = h_start;
+    char *i, c;
+
+    char *key_start;
+    char *value_start;
+
+    for (i = req->pos; i < buf + len; i++) {
+        c = *i;
+        
+        switch (state) {
+            case h_start:
+                if ( !((c >= 'A'&& c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_') ) {
+                    return HTTP_INVALID_REQUEST;
+                }
+                state = h_key;
+                key_start = i;
+                break;
+            case h_key:
+                if (c == ':') {
+                    state = h_before_value;
+                    *i = '\0';
+                } else if ( !((c >= 'A'&& c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_') )
+                    return HTTP_INVALID_REQUEST;
+                break;
+            case h_before_value:
+                if (c != ' ') return HTTP_INVALID_REQUEST;
+                state = h_value_start;
+                break;
+            case h_value_start:
+                if (c == '\n' || c == '\r') return HTTP_INVALID_REQUEST;
+                value_start = i;
+                state = h_value;
+                break;
+            case h_value:
+                if (c == '\r') {
+                    state = h_lf;
+                    *i = '\0';
+                    http_req_add_header(req, key_start, value_start);
+                } else if (c == '\n') return HTTP_INVALID_REQUEST;
+                break;
+            case h_lf:
+                if (c != '\n') return HTTP_INVALID_REQUEST;
+                state = h_start_2nd;
+                break;
+            case h_start_2nd:
+                if (c == '\r') {
+                    state = h_done;
+                } else if ( !((c >= 'A'&& c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_') ) {
+                    return HTTP_INVALID_REQUEST;
+                } else {
+                    state = h_key;
+                    key_start = i;
+                }
+                break;
+            case h_done:
+                if (c != '\n') return HTTP_INVALID_REQUEST;
+                goto done;
+                break;
         }
     }
 
-    request.headers = headers_count ? headers : NULL;
-    request.headers_count = headers_count;
+    if (state != h_done) return HTTP_INVALID_REQUEST;
 
-    // parse body
-    if (request.method == POST) {
-        char *content_length = http_get_header_value(headers, headers_count, "Content-Length");
-        if (content_length) {
-            int content_length_int = atoi(content_length);
-            buf[i + 4 + content_length_int] = '\0';
-            request.body = buf + i + 4;
-        }
+    done:
+    req->pos = i + 1;
+    return HTTP_DONE;
+}
+
+
+int http_parse_body(struct request *req, char *buf, int len) {
+    char *content_length_buf = http_get_header_value(req->headers, req->headers_count, "Content-Length");
+
+    if (content_length_buf == NULL) return HTTP_EMPTY;
+
+    for (char *i = content_length_buf; *i != '\0'; i++) {
+        if (*i < '0' || *i > '9') return HTTP_INVALID_REQUEST;
     }
 
-    return request;
+    int content_length = atoi(content_length_buf);
+    req->body = req->pos;
+    char *body_end = &req->pos[content_length];
+    if (body_end <= buf + len) {
+        *body_end = '\0';
+        req->body_len = content_length;
+    } else {
+        return HTTP_INVALID_REQUEST;
+    }
+    return HTTP_DONE;
 }
 
 
@@ -200,6 +396,9 @@ void http_get_status(int status, char *code, char *msg) {
             strcpy_s(code, 4, "404");
             strcpy_s(msg, 30, " Not Found\r\n");
             break;
+        case STATUS_BAD_REQUEST:
+            strcpy_s(code, 4, "400");
+            strcpy_s(msg, 30, " Bad Request\r\n");
         default:
             strcpy_s(code, 4, "500");
             strcpy_s(msg, 30, " Internal Server Error\r\n");

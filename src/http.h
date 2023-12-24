@@ -12,6 +12,14 @@
 #define close closesocket
 #pragma comment (lib, "Ws2_32.lib")
 
+enum http_request_status {
+    HTTP_INVALID_REQUEST,
+    HTTP_VALID_REQUEST,
+    HTTP_CONTINUE,
+    HTTP_DONE,
+    HTTP_EMPTY
+};
+
 enum method {
     GET,
     POST,
@@ -21,6 +29,7 @@ enum method {
 enum status {
     STATUS_OK = 200,
     STATUS_NOTFOUND = 404,
+    STATUS_BAD_REQUEST = 400,
     STATUS_ERROR = 0
 };
 
@@ -31,12 +40,26 @@ struct pair {
 
 typedef struct request {
     char *path;
-    struct pair *headers;
-    int headers_count;
+    int path_len;
+
+    int method;
+
+    int version;
+    int major_version;
+    int minor_version;
+
     struct pair *parameters;
     int parameters_count;
+    int parameters_size;
+
+    struct pair *headers;
+    int headers_count;
+    int headers_size;
+    
     char *body;
-    int method;
+    int body_len;
+    
+    char *pos;
 } request;
 
 typedef struct response {
@@ -54,7 +77,9 @@ void pretty_ip(long ip, char *buf);
 enum method http_get_method(char *method);
 int http_accept_connection(int sock, long *addr);
 
-struct request http_parse_request(char *buf, int len);
+int http_parse_start_line(struct request *req, char *buf, int len);
+int http_parse_headers(struct request *req, char *buf, int len);
+int http_parse_body(struct request *req, char *buf, int len);
 char *http_get_header_value(struct pair *headers, int headers_count, char *key);
 int http_create_response(struct response response, char **output);
 
