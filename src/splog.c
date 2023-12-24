@@ -7,7 +7,10 @@
 struct response err_response = {
     .body = "invalid request",
     .body_len = 15,
+    .body_size = 0,
     .status = 400,
+    .headers = NULL,
+    .headers_count = 0
 };
 
 void splog_print_response(struct response *resp) {
@@ -97,7 +100,7 @@ int _splog_run(struct route *routes, int routes_len, struct response* (*notfound
                 response = err_response;
             } else {
                 content_length = http_get_header_value(request.headers, request.headers_count, "Content-Length");
-                if (content_length) {
+                if (content_length && request.method == POST) {
                     result = http_parse_body(&request, buf, len);
                     if (result == HTTP_INVALID_REQUEST) {
                         response = err_response;

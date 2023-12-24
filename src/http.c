@@ -399,6 +399,7 @@ void http_get_status(int status, char *code, char *msg) {
         case STATUS_BAD_REQUEST:
             strcpy_s(code, 4, "400");
             strcpy_s(msg, 30, " Bad Request\r\n");
+            break;
         default:
             strcpy_s(code, 4, "500");
             strcpy_s(msg, 30, " Internal Server Error\r\n");
