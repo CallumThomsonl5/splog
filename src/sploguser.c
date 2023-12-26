@@ -28,7 +28,7 @@ void append_body(struct response *resp, const char *body) {
         memset(&resp->body[resp->body_len], 0, resp->body_size - resp->body_len);
     }
 
-    memcpy_s(&resp->body[resp->body_len], resp->body_size - resp->body_len, body, append_length);
+    memcpy(&resp->body[resp->body_len], body, append_length);
     resp->body_len += append_length;
 }
 
@@ -49,13 +49,12 @@ void append_body_l(struct response *resp, char *buf, int len) {
         memset(&resp->body[resp->body_len], 0, resp->body_size - resp->body_len);
     }
 
-    memcpy_s(&resp->body[resp->body_len], resp->body_size - resp->body_len, buf, len);
+    memcpy(&resp->body[resp->body_len], buf, len);
     resp->body_len += len;
 }
 
 void append_file_body(struct response *resp, char *filename) {
-    FILE *fp = NULL;
-    fopen_s(&fp, filename, "rb");
+    FILE *fp = fopen(filename, "rb");
     fseek(fp, 0, SEEK_END);
     long size = ftell(fp);
     rewind(fp);
@@ -84,8 +83,8 @@ void set_header(struct response *resp, const char *key, const char *value) {
 
     const int buf_len = key_len + value_len + 2;
     char *buf = calloc(buf_len, 1);
-    memcpy_s(buf, buf_len, key, key_len + 1);
-    memcpy_s(&buf[key_len + 1], buf_len - (key_len  + 1), value, value_len + 1);
+    memcpy(buf, key, key_len + 1);
+    memcpy(&buf[key_len + 1], value, value_len + 1);
 
     resp->headers[resp->headers_count].key = buf;
     resp->headers[resp->headers_count++].value = &buf[key_len + 1];

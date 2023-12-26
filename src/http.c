@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <unistd.h>
+
 #include "http.h"
 
 #define close closesocket
@@ -27,11 +29,8 @@ void pretty_ip(long ip, char *buf) {
 
 
 int http_get_tcp_socket(long host, short port) {
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) return -1;
-
     int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == INVALID_SOCKET) return -1;
+    if (sock == -1) return -1;
 
     struct sockaddr_in mysockaddr;
     mysockaddr.sin_family = AF_INET;
@@ -47,7 +46,7 @@ int http_get_tcp_socket(long host, short port) {
 
 int http_accept_connection(int sock, long *addr) {
     struct sockaddr_in client_sockadddr;
-    int addrlen = sizeof(struct sockaddr_in);
+    socklen_t addrlen = sizeof(struct sockaddr_in);
     int conn_sock = accept(sock, (struct sockaddr*)&client_sockadddr, 
         &addrlen);
     if (addr) *addr = client_sockadddr.sin_addr.s_addr;
@@ -378,23 +377,21 @@ int http_parse_body(struct request *req, char *buf, int len) {
 }
 
 
-void http_get_status(int status, char *code, char *msg) {
+void http_get_status(int status, char *msg) {
+    // msg should be 50 bytes
     switch (status) {
         case STATUS_OK:
-            strcpy_s(code, 4, "200");
-            strcpy_s(msg, 30, " OK\r\n");
+            strcpy(msg, STATUS_OK_MSG "\r\n");
             break;
         case STATUS_NOTFOUND:
-            strcpy_s(code, 4, "404");
-            strcpy_s(msg, 30, " Not Found\r\n");
+            strcpy(msg, STATUS_NOTFOUND_MSG "\r\n");
             break;
         case STATUS_BAD_REQUEST:
-            strcpy_s(code, 4, "400");
-            strcpy_s(msg, 30, " Bad Request\r\n");
+            strcpy(msg, STATUS_BAD_REQUEST_MSG "\r\n");
             break;
         default:
-            strcpy_s(code, 4, "500");
-            strcpy_s(msg, 30, " Internal Server Error\r\n");
+            strcpy(msg, STATUS_INTERNAL_SERVER_ERROR_MSG "\r\n");
+            break;
     }
 }
 
@@ -407,11 +404,8 @@ int http_create_response(struct response response, char **output) {
     // add status
     memcpy(buf, "HTTP/1.1 ", 9);
     pos = 9;
-    char status[4];
-    char msg[30];
-    http_get_status(response.status, status, msg);
-    memcpy(&buf[pos], status, 3);
-    pos += 3;
+    char msg[50] = {0};
+    http_get_status(response.status, msg);
     memcpy(&buf[pos], msg, strlen(msg));
     pos += strlen(msg);
 
@@ -424,7 +418,7 @@ int http_create_response(struct response response, char **output) {
     memcpy(&buf[pos], "Content-Length: ", 16);
     pos += 16;
     char cl_buf[10] = {0};
-    _itoa_s(response.body_len, cl_buf, 10, 10);
+    snprintf(cl_buf, 10, "%d", response.body_len);
     memcpy(&buf[pos], cl_buf, strlen(cl_buf));
     pos += strlen(cl_buf);
     memcpy(&buf[pos], "\r\n", 2);
@@ -458,7 +452,7 @@ int http_create_response(struct response response, char **output) {
         buf = realloc(buf, buf_size);
     }
 
-    memcpy_s(&buf[pos], buf_size - pos, response.body, response.body_len);
+    memcpy(&buf[pos], response.body, response.body_len);
 
     *output = buf;
     return pos + response.body_len;

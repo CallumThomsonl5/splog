@@ -1,7 +1,10 @@
-#include "splog.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <unistd.h>
+
+#include "splog.h"
 #include "http.h"
 
 struct response err_response = {
@@ -80,7 +83,7 @@ void splog_free_request(struct request request) {
 
 
 int _splog_run(struct route *routes, int routes_len, struct response* (*notfound_resp)(struct request*)) {
-    int sock = http_get_tcp_socket(0x7F000001, 4000);
+    int sock = http_get_tcp_socket(0x0, 4000);
     for (;;) {
         int conn = http_accept_connection(sock, NULL);
         puts("connection accepted");

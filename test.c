@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "src/sploguser.h"
 
 response test_resp(request req) {
@@ -62,7 +63,7 @@ response add_resp(request req) {
     }
 
     char buf[10] = {0};
-    _itoa_s(total, buf, 10, 10);
+    snprintf(buf, 10, "%d", total);
     append_body(resp, buf);
 
     return resp;

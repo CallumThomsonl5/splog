@@ -1,16 +1,15 @@
 #ifndef HTTP_H
 #define HTTP_H
 
-#undef UNICODE
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
-#define WIN32_LEAN_AND_MEAN
 
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
+#define STATUS_OK_MSG "200 OK"
+#define STATUS_NOTFOUND_MSG "404 Not Found"
+#define STATUS_BAD_REQUEST_MSG "400 Bad Request"
+#define STATUS_INTERNAL_SERVER_ERROR_MSG "500 Internal Server Error"
 
-#define close closesocket
-#pragma comment (lib, "Ws2_32.lib")
 
 enum http_request_status {
     HTTP_INVALID_REQUEST,

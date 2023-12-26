@@ -1,6 +1,6 @@
 FLAGS = -Wall -pedantic
 
-all: test.exe
+all: test
 
 build/http.o: src/http.c
 	clang -c src/http.c -o build/http.o ${FLAGS}
@@ -11,8 +11,8 @@ build/sploginternal.o: src/splog.c
 build/sploguser.o: src/sploguser.c
 	clang -c src/sploguser.c -o build/sploguser.o ${FLAGS}
 
-build/splog.lib: build/http.o build/sploginternal.o build/sploguser.o
-	ar rcs build/splog.lib build/http.o build/sploginternal.o build/sploguser.o
+build/libsplog.a: build/http.o build/sploginternal.o build/sploguser.o
+	ar rcs build/libsplog.a build/http.o build/sploginternal.o build/sploguser.o
 
-test.exe: test.c build/splog.lib
-	clang test.c -o test.exe -L./build -lsplog ${FLAGS}
+test: test.c build/libsplog.a
+	clang test.c -o test -L./build -lsplog ${FLAGS}
