@@ -30,6 +30,8 @@ void pretty_ip(long ip, char *buf) {
 
 int http_get_tcp_socket(long host, short port) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int optval = 1;
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, 4);
     if (sock == -1) return -1;
 
     struct sockaddr_in mysockaddr;
@@ -397,9 +399,9 @@ void http_get_status(int status, char *msg) {
 
 
 int http_create_response(struct response response, char **output) {
-    int buf_size = 100;
+    size_t buf_size = 100;
     char *buf = malloc(buf_size);
-    int pos = 0;
+    size_t pos = 0;
 
     // add status
     memcpy(buf, "HTTP/1.1 ", 9);
@@ -418,7 +420,7 @@ int http_create_response(struct response response, char **output) {
     memcpy(&buf[pos], "Content-Length: ", 16);
     pos += 16;
     char cl_buf[10] = {0};
-    snprintf(cl_buf, 10, "%d", response.body_len);
+    snprintf(cl_buf, 10, "%zu", response.body_len);
     memcpy(&buf[pos], cl_buf, strlen(cl_buf));
     pos += strlen(cl_buf);
     memcpy(&buf[pos], "\r\n", 2);

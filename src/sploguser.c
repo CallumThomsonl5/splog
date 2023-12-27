@@ -37,7 +37,7 @@ void append_body_m(struct response *resp, char *body) {
     free(body);
 }
 
-void append_body_l(struct response *resp, char *buf, int len) {
+void append_body_l(struct response *resp, char *buf, size_t len) {
     if (!resp->body_size) {
         resp->body_size = 1000;
         resp->body = malloc(resp->body_size);
@@ -46,6 +46,12 @@ void append_body_l(struct response *resp, char *buf, int len) {
     if (len + resp->body_len >= resp->body_size - 1) {
         resp->body_size = len + resp->body_len + 100;
         resp->body = realloc(resp->body, resp->body_size);
+
+        if (resp->body == NULL) {
+            puts("[SPLOG] append body failed, ran out of memory or data too large");
+            exit(1);
+        }
+
         memset(&resp->body[resp->body_len], 0, resp->body_size - resp->body_len);
     }
 
@@ -56,10 +62,16 @@ void append_body_l(struct response *resp, char *buf, int len) {
 void append_file_body(struct response *resp, char *filename) {
     FILE *fp = fopen(filename, "rb");
     fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
+    size_t size = ftell(fp);
     rewind(fp);
 
     char *buf = malloc(size);
+
+    if (buf == NULL) {
+        puts("[SPLOG] append file failed, ran out of memory or file too big");
+        exit(1);
+    }
+
     fread(buf, size, 1, fp);
     fclose(fp);
 

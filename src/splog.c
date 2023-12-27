@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include <unistd.h>
+#include <pthread.h>
 
 #include "splog.h"
 #include "http.h"
@@ -81,16 +82,27 @@ void splog_free_request(struct request request) {
     }
 }
 
+struct handle_request_thread_args {
+    int conn;
+    struct route *routes;
+    int routes_len;
+    struct response* (*notfound_resp)(struct request*);
+};
 
-int _splog_run(struct route *routes, int routes_len, struct response* (*notfound_resp)(struct request*)) {
-    int sock = http_get_tcp_socket(0x0, 4000);
+void *splog_handle_connection_thread(void *arg) {
+    char buf[1001];
+    memset(buf, 0, 1001);
+
+    struct handle_request_thread_args vars = *((struct handle_request_thread_args*)arg);
+    int conn = vars.conn;
+    struct route *routes = vars.routes;
+    int routes_len = vars.routes_len;
+    struct response* (*notfound_resp)(struct request*) = vars.notfound_resp;
+
     for (;;) {
-        int conn = http_accept_connection(sock, NULL);
-        puts("connection accepted");
-        char buf[1001] = {'\0'};
         int len = recv(conn, buf, sizeof(buf)-1, 0);
 
-        if (len <= 0) continue;
+        if (len <= 0) return 0;
 
         struct request request = {0};
         struct response response;
@@ -122,15 +134,40 @@ int _splog_run(struct route *routes, int routes_len, struct response* (*notfound
 
         printf("[SPLOG] %d %s\n", request.method, request.path);
         
-
         splog_free_request(request);
 
         char *resp_buf;
-        int resp_len = http_create_response(response, &resp_buf);
+        size_t resp_len = http_create_response(response, &resp_buf);
 
         send(conn, resp_buf, resp_len, 0);
         free(resp_buf);
         splog_free_response(response);
-        close(conn);
+    }
+
+    return 0;
+}
+
+
+int _splog_run(struct route *routes, int routes_len, struct response* (*notfound_resp)(struct request*)) {
+    int sock = http_get_tcp_socket(0x0, 4000);
+
+    if (sock < 0) {
+        puts("failed to get socket");
+        exit(1);
+    }
+
+    for (;;) {
+        int conn = http_accept_connection(sock, NULL);
+        puts("connection accepted");
+
+        struct handle_request_thread_args args = {
+            .conn = conn,
+            .routes = routes,
+            .routes_len = routes_len,
+            .notfound_resp = notfound_resp
+        };
+
+        pthread_t t = 0;
+        pthread_create(&t, NULL, splog_handle_connection_thread, (void*)&args);
     }
 }

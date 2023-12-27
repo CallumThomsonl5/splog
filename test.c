@@ -80,6 +80,8 @@ response favicon_resp(request req) {
     response resp = create_response();
     append_file_body(resp, "./static/favicon.ico");
     set_header(resp, "Content-Type", "image/png");
+    set_header(resp, "Cache-Control", "max-age=604800");
+    
     return resp;
 }
 

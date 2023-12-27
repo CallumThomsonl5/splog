@@ -66,8 +66,8 @@ typedef struct response {
     int headers_count;
     int headers_size;
     char *body;
-    int body_len;
-    int body_size;
+    size_t body_len;
+    size_t body_size;
     int status;
 } response;
 

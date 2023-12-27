@@ -15,4 +15,4 @@ build/libsplog.a: build/http.o build/sploginternal.o build/sploguser.o
 	ar rcs build/libsplog.a build/http.o build/sploginternal.o build/sploguser.o
 
 test: test.c build/libsplog.a
-	clang test.c -o test -L./build -lsplog ${FLAGS}
+	clang test.c -o test -L./build -lsplog ${FLAGS} -lpthread
