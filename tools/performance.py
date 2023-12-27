@@ -2,7 +2,7 @@ import threading
 import socket
 import time
 
-THREAD_COUNT = 100
+THREAD_COUNT = 1000
 
 fail_count = 0
 comp_count = 0
@@ -18,11 +18,13 @@ def make_req(url: str):
         resp = s.recv(1024).decode("utf-8")
         try:
             return_code = resp.split(" ")
+            s.close()
             return return_code[1]
         except IndexError:
-            print(resp)
+            s.close()
             return "failed"
     except socket.timeout:
+        s.close()
         return "timeout"
 
 def req_thread(path, id):
